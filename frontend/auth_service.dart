@@ -1665,6 +1665,46 @@ class AuthService {
     }
   }
 
+  // ======== دالة جديدة لجلب إحصائيات المنشور فقط (للتحديث الدوري) ========
+  static Future<Map<String, dynamic>> getPostStats(int postId) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'success': false, 'message': 'المستخدم غير مسجل الدخول'};
+      }
+
+      print('📊 جلب إحصائيات المنشور ID: $postId');
+
+      // يمكنك استخدام endpoint محدد للإحصائيات أو جلب المنشور كاملاً
+      // هنا نستخدم endpoint بسيط يجلب فقط الإحصائيات
+      final uri = Uri.parse('$baseUrl/api/posts/$postId/stats');
+      final response = await http
+          .get(
+            uri,
+            headers: getHeaders(token),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final result = _handleResponse(response, 'get_post_stats');
+
+      if (result['success'] == true) {
+        return {
+          'success': true,
+          'likes_count': result['likes_count'] ?? result['data']?['likes_count'] ?? 0,
+          'comments_count': result['comments_count'] ?? result['data']?['comments_count'] ?? 0,
+        };
+      }
+
+      return result;
+    } catch (e) {
+      print('❌ خطأ في جلب إحصائيات المنشور: $e');
+      return {
+        'success': false,
+        'message': 'خطأ في جلب الإحصائيات: ${e.toString()}',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> addComment({
     required int postId,
     required String content,

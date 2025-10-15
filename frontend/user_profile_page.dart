@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'messages_page.dart';
 import 'post_card_widget.dart';
+import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
 
 class UserProfilePage extends StatefulWidget {
   final int userId;
@@ -23,39 +24,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Map<String, dynamic>? _userData;
   List<Map<String, dynamic>> _posts = [];
 
-  // دالة لتحويل اسم القسم إلى العربية
-  String _convertCategoryToArabic(String category) {
-    Map<String, String> categoryMap = {
-      'job': 'التوظيف',
-      'tenders': 'المناقصات',
-      'suppliers': 'الموردين',
-      'general_offers': 'العروض العامة',
-      'cars': 'السيارات',
-      'motorcycles': 'الدراجات النارية',
-      'real_estate': 'تجارة العقارات',
-      'weapons': 'المستلزمات العسكرية',
-      'electronics': 'الهواتف والالكترونيات',
-      'electrical': 'الأدوات الكهربائية',
-      'house_rent': 'ايجار العقارات',
-      'agriculture': 'الثمار والحبوب',
-      'food': 'المواد الغذائية',
-      'restaurants': 'المطاعم',
-      'heating': 'مواد التدفئة',
-      'accessories': 'المكياج والاكسسوار',
-      'animals': 'المواشي والحيوانات',
-      'books': 'الكتب والقرطاسية',
-      'home_health': 'الأدوات المنزلية',
-      'clothing_shoes': 'الملابس والأحذية',
-      'furniture': 'أثاث المنزل',
-      'wholesalers': 'تجار الجملة',
-      'distributors': 'الموزعين',
-      'others': 'أسواق أخرى',
-      'suggestions': 'اقتراحات وشكاوي',
-      'ad_contact': 'تواصل للإعلانات',
-    };
-
-    return categoryMap[category] ?? category;
-  }
+  // ✅ تم نقل هذه الدالة إلى PostHelpers.convertCategoryToArabic
 
   @override
   void initState() {
@@ -63,13 +32,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _fetchUserData();
   }
 
-  // --- ✨ دالة مساعدة لتحويل القيم إلى أرقام بشكل آمن ✨ ---
-  int _parseToInt(dynamic value, {int defaultValue = -1}) {
-    if (value == null) return defaultValue;
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value) ?? defaultValue;
-    return defaultValue;
-  }
+  // ✅ تم نقل هذه الدالة إلى PostHelpers.parseToInt
 
   // --- ✨✨ بداية الإصلاح الشامل ✨✨ ---
   Future<void> _fetchUserData() async {
@@ -90,37 +53,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
         List<Map<String, dynamic>> rawPosts =
             List<Map<String, dynamic>>.from(result['data']['posts'] ?? []);
 
-        _posts = rawPosts.map((post) {
-          final userForPost = post['user'] ?? _userData!;
-          List<String> images = (post['images'] as List<dynamic>?)
-                  ?.map((imageUrl) =>
-                      imageUrl.toString()) // imageUrl هو النص مباشرة
-                  .toList() ??
-              [];
-
-          // 2. إصلاح معالجة الفيديو: استخدام المفتاح الصحيح 'video_path'
-          // ✅ معالجة الفيديو بشكل مطابق لـ home_page (الفيديو مسار نصي مباشر)
-          String? videoUrl = post['video'] is String ? post['video'] : null;
-          return {
-            'id': _parseToInt(post['id']),
-            'user_id': _parseToInt(userForPost['id']),
-            'user_name': userForPost['full_name'] ?? 'مستخدم',
-            'content': post['content'] ?? '',
-            'title': post['title'] ?? '',
-            'category': _convertCategoryToArabic(post['category'] ?? ''),
-            'price': post['price']?.toString(),
-            'location': post['location'],
-            'images': images,
-            'video_url': videoUrl,
-            'likes_count': _parseToInt(post['likes_count'], defaultValue: 0),
-            'comments_count':
-                _parseToInt(post['comments_count'], defaultValue: 0),
-            'created_at': post['created_at'],
-            'isLiked': post['is_liked_by_user'] ?? false,
-            'gender': userForPost['gender'],
-            'user_type': userForPost['user_type'] ?? 'person',
-          };
-        }).toList();
+        // ✅ استخدام الدالة المركزية من PostHelpers
+        _posts = PostHelpers.processPostsList(
+          rawPosts,
+          fallbackUserData: _userData,
+        );
 
         // تحديث الواجهة بالبيانات الصحيحة
         setState(() {});
@@ -405,33 +342,5 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  // --- ✨✨ بداية الإصلاح الشامل: استخدام Uri.resolve لبناء الروابط ✨✨ ---
-  String _getFullUrl(String path) {
-    // إذا كان المسار يحتوي بالفعل على "http"، فهذا يعني أنه رابط كامل
-    if (path.startsWith('http')) {
-      // فقط قم بإصلاح أي شرطات مائلة عكسية قد تأتي من الـ JSON
-      return path.replaceAll(r'\/', '/');
-    }
-
-    // الطريقة الصحيحة والآمنة لدمج الروابط.
-    // هي تعالج تلقائيًا ما إذا كان `baseUrl` ينتهي بـ / أو أن `path` يبدأ بـ /
-    return Uri.parse(AuthService.baseUrl).resolve(path).toString();
-  }
-  // --- ✨✨ نهاية الإصلاح الشامل ✨✨ ---
-
-  // ✨ --- بداية الإضافة --- ✨
-  String _convertCategoryToLocalName(String? categoryName) {
-    // هذه الدالة تعتمد على أن الخادم يرسل الاسم المترجم بالفعل
-    // يمكنك تعديلها في المستقبل إذا احتجت للترجمة داخل التطبيق
-    return categoryName ?? 'غير مصنف';
-  }
-
-  // ✨ --- نهاية الإضافة --- ✨
-  String _getImageUrl(String imagePath) {
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    String baseUrl = AuthService.baseUrl;
-    return '$baseUrl/$imagePath';
-  }
+  // ✅ تم نقل هذه الدوال إلى PostHelpers
 }

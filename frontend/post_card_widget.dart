@@ -9,6 +9,7 @@ import 'user_profile_page.dart';
 import 'login_page.dart';
 import 'full_screen_image_viewer.dart';
 import 'messages_page.dart'; // <-- ✨ تم إضافة هذا الاستيراد للوصول إلى ChatPage
+import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
 
 class PostCardWidget extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -207,10 +208,9 @@ class _PostCardWidgetState extends State<PostCardWidget> {
     }
   }
 
+  // ✅ استخدام الدالة المركزية من PostHelpers
   String _getImageUrl(String path) {
-    if (path.startsWith('http')) return path;
-    String baseUrl = AuthService.baseUrl.replaceAll('/new_api.php', '');
-    return '$baseUrl/$path';
+    return PostHelpers.getFullImageUrl(path, AuthService.baseUrl);
   }
 
   void _openImageViewer(

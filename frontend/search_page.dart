@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'user_profile_page.dart';
 import 'post_card_widget.dart';
+import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
 
 class SearchPage extends StatefulWidget {
   const SearchPage({Key? key}) : super(key: key);
@@ -17,47 +18,9 @@ class _SearchPageState extends State<SearchPage> {
   bool _isLoading = false;
   bool _hasSearched = false;
 
-  String _convertCategoryToArabic(String category) {
-    Map<String, String> categoryMap = {
-      'job': 'التوظيف',
-      'tenders': 'المناقصات',
-      'suppliers': 'الموردين',
-      'general_offers': 'العروض العامة',
-      'cars': 'السيارات',
-      'motorcycles': 'الدراجات النارية',
-      'real_estate': 'تجارة العقارات',
-      'weapons': 'المستلزمات العسكرية',
-      'electronics': 'الهواتف والالكترونيات',
-      'electrical': 'الأدوات الكهربائية',
-      'house_rent': 'ايجار العقارات',
-      'agriculture': 'الثمار والحبوب',
-      'food': 'المواد الغذائية',
-      'restaurants': 'المطاعم',
-      'heating': 'مواد التدفئة',
-      'accessories': 'المكياج والاكسسوار',
-      'animals': 'المواشي والحيوانات',
-      'books': 'الكتب والقرطاسية',
-      'home_health': 'الأدوات المنزلية',
-      'clothing_shoes': 'الملابس والأحذية',
-      'furniture': 'أثاث المنزل',
-      'wholesalers': 'تجار الجملة',
-      'distributors': 'الموزعين',
-      'others': 'أسواق أخرى',
-      'suggestions': 'اقتراحات وشكاوي',
-      'ad_contact': 'تواصل للإعلانات',
-    };
+  // ✅ تم نقل هذه الدالة إلى PostHelpers.convertCategoryToArabic
 
-    return categoryMap[category] ?? category;
-  }
-
-  // --- ✨ بداية الإضافة: دالة مساعدة لتحويل القيم إلى أرقام بشكل آمن ✨ ---
-  int _parseToInt(dynamic value, {int defaultValue = -1}) {
-    if (value == null) return defaultValue;
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value) ?? defaultValue;
-    return defaultValue;
-  }
-  // --- ✨ نهاية الإضافة ---
+  // ✅ تم نقل هذه الدالة إلى PostHelpers.parseToInt
 
   Future<void> _performSearch(String query) async {
     if (query.trim().isEmpty) {
@@ -81,44 +44,11 @@ class _SearchPageState extends State<SearchPage> {
       if (!mounted) return;
 
       if (result['success'] == true && result['data'] != null) {
-        // --- ✨ بداية التعديل الشامل: معالجة بيانات المنشورات بنفس طريقة صفحة الملف الشخصي ✨ ---
+        // ✅ استخدام الدالة المركزية من PostHelpers
         List<Map<String, dynamic>> rawPosts =
             List<Map<String, dynamic>>.from(result['data']['posts'] ?? []);
 
-        final processedPosts = rawPosts.map((post) {
-          // نتائج البحث دائماً تحتوي على معلومات المستخدم داخل كل منشور
-          final userForPost = post['user'] as Map<String, dynamic>? ?? {};
-
-          List<String> images = (post['images'] as List<dynamic>?)
-                  ?.map((imageUrl) => imageUrl.toString())
-                  .toList() ??
-              [];
-
-          String? videoUrl =
-              post['video'] != null && post['video']['video_path'] != null
-                  ? post['video']['video_path']
-                  : null;
-
-          return {
-            'id': _parseToInt(post['id']),
-            'user_id': _parseToInt(userForPost['id']),
-            'user_name': userForPost['full_name'] ?? 'مستخدم',
-            'content': post['content'] ?? '',
-            'title': post['title'] ?? '',
-            'category': _convertCategoryToArabic(post['category'] ?? ''),
-            'price': post['price']?.toString(),
-            'location': post['location'],
-            'images': images,
-            'video_url': videoUrl,
-            'likes_count': _parseToInt(post['likes_count'], defaultValue: 0),
-            'comments_count':
-                _parseToInt(post['comments_count'], defaultValue: 0),
-            'created_at': post['created_at'],
-            'isLiked': post['is_liked_by_user'] ?? false,
-            'gender': userForPost['gender'],
-            'user_type': userForPost['user_type'] ?? 'person',
-          };
-        }).toList();
+        final processedPosts = PostHelpers.processPostsList(rawPosts);
 
         setState(() {
           _userResults =
@@ -126,7 +56,6 @@ class _SearchPageState extends State<SearchPage> {
           _postResults = processedPosts;
           _hasSearched = true;
         });
-        // --- ✨ نهاية التعديل الشامل ---
       } else {
         setState(() {
           _userResults = [];

@@ -14,6 +14,7 @@ import 'search_page.dart';
 import 'post_card_widget.dart';
 import 'login_page.dart';
 import 'vip_ads_widget.dart'; // <-- ✨ أضف هذا الاستيراد
+import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -164,12 +165,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  int _parseToInt(dynamic value, {int defaultValue = -1}) {
-    if (value == null) return defaultValue;
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value) ?? defaultValue;
-    return defaultValue;
-  }
+  // ✅ تم نقل هذه الدالة إلى PostHelpers.parseToInt
 
   Future<void> _fetchPosts() async {
     if (!mounted) return;
@@ -184,49 +180,8 @@ class _HomePageState extends State<HomePage> {
         final postsData = List<Map<String, dynamic>>.from(result['data']);
 
         setState(() {
-          _postsFromServer = postsData.map((post) {
-            // --- ✅ بداية الإصلاحات ---
-
-            // 1. إصلاح معالجة الصور: التعامل مع قائمة النصوص مباشرة
-            List<String> images = (post['images'] as List<dynamic>?)
-                    ?.map((imageUrl) =>
-                        imageUrl.toString()) // imageUrl هو النص مباشرة
-                    .toList() ??
-                [];
-
-            // 2. إصلاح معالجة الفيديو: استخدام المفتاح الصحيح 'video_path'
-            String? videoUrl =
-                post['video'] != null && post['video']['video_path'] != null
-                    ? post['video']['video_path']
-                    : null;
-
-            // --- نهاية الإصلاحات ---
-
-            String userName = post['user']?['full_name'] ?? 'مستخدم';
-            int userId = post['user']?['id'] ?? -1;
-
-            return {
-              'id': post['id'],
-              'user_id': userId,
-              'user_name': userName,
-              'user_avatar':
-                  'https://via.placeholder.com/50x50/cccccc/ffffff?text=${userName.isNotEmpty ? userName.substring(0, 1) : 'U'}',
-              'content': post['content'] ?? '',
-              'title': post['title'] ?? '',
-              'category': _convertCategoryToArabic(post['category'] ?? ''),
-              'price': post['price']?.toString() ?? 'غير محدد',
-              'location': post['location'] ?? 'غير محدد',
-              'images': images, // <-- القائمة المصححة للصور
-              'video_url': videoUrl, // <-- الرابط المصحح للفيديو
-              'likes_count': _parseToInt(post['likes_count'], defaultValue: 0),
-              'comments_count':
-                  _parseToInt(post['comments_count'], defaultValue: 0),
-              'created_at': post['created_at'],
-              'isLiked': post['is_liked_by_user'] ?? false,
-              'gender': post['user']?['gender'],
-              'user_type': post['user']?['user_type'] ?? 'person',
-            };
-          }).toList();
+          // ✅ استخدام الدالة المركزية من PostHelpers
+          _postsFromServer = PostHelpers.processPostsList(postsData);
           _isPostsLoading = false;
         });
       } else {
@@ -248,50 +203,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-// دالة لتحويل اسم القسم إلى العربية
-  String _convertCategoryToArabic(String category) {
-    Map<String, String> categoryMap = {
-      'job': 'التوظيف',
-      'tenders': 'المناقصات',
-      'suppliers': 'الموردين',
-      'general_offers': 'العروض العامة',
-      'cars': 'السيارات',
-      'motorcycles': 'الدراجات النارية',
-      'real_estate': 'تجارة العقارات',
-      'weapons': 'المستلزمات العسكرية',
-      'electronics': 'الهواتف والالكترونيات',
-      'electrical': 'الأدوات الكهربائية',
-      'house_rent': 'ايجار العقارات',
-      'agriculture': 'الثمار والحبوب',
-      'food': 'المواد الغذائية',
-      'restaurants': 'المطاعم',
-      'heating': 'مواد التدفئة',
-      'accessories': 'المكياج والاكسسوار',
-      'animals': 'المواشي والحيوانات',
-      'books': 'الكتب والقرطاسية',
-      'home_health': 'الأدوات المنزلية',
-      'clothing_shoes': 'الملابس والأحذية',
-      'furniture': 'أثاث المنزل',
-      'wholesalers': 'تجار الجملة',
-      'distributors': 'الموزعين',
-      'others': 'أسواق أخرى',
-      'suggestions': 'اقتراحات وشكاوي',
-      'ad_contact': 'تواصل للإعلانات',
-    };
+  // ✅ تم نقل هذه الدالة إلى PostHelpers.convertCategoryToArabic
 
-    return categoryMap[category] ?? category;
-  }
-
-  // دالة لتحويل مسار الصورة إلى رابط كامل
+  // ✅ استخدام الدالة المركزية من PostHelpers
   String _getImageUrl(String imagePath) {
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    String baseUrl = AuthService.baseUrl;
-    if (baseUrl.contains('api.php')) {
-      baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-    }
-    return '$baseUrl/$imagePath';
+    return PostHelpers.getFullImageUrl(imagePath, AuthService.baseUrl);
   }
 
   // ✅ تحسين عرض الصور مع تخطيط ذكي حسب عدد الصور
