@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'post_card_widget_search.dart';
 import 'auth_service.dart';
 import 'user_profile_page.dart';
 import 'post_card_widget.dart';
-import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
+import 'post_helpers.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({Key? key}) : super(key: key);
@@ -18,9 +19,50 @@ class _SearchPageState extends State<SearchPage> {
   bool _isLoading = false;
   bool _hasSearched = false;
 
-  // ✅ تم نقل هذه الدالة إلى PostHelpers.convertCategoryToArabic
+  // 🔥 أضف هذه الدوال المساعدة المطلوبة
+  String _convertCategoryToArabic(String category) {
+    Map<String, String> categoryMap = {
+      'job': 'التوظيف',
+      'tenders': 'المناقصات',
+      'suppliers': 'الموردين',
+      'general_offers': 'العروض العامة',
+      'cars': 'السيارات',
+      'motorcycles': 'الدراجات النارية',
+      'real_estate': 'تجارة العقارات',
+      'weapons': 'المستلزمات العسكرية',
+      'electronics': 'الهواتف والالكترونيات',
+      'electrical': 'الأدوات الكهربائية',
+      'house_rent': 'ايجار العقارات',
+      'agriculture': 'الثمار والحبوب',
+      'food': 'المواد الغذائية',
+      'restaurants': 'المطاعم',
+      'heating': 'مواد التدفئة',
+      'accessories': 'المكياج والاكسسوار',
+      'animals': 'المواشي والحيوانات',
+      'books': 'الكتب والقرطاسية',
+      'home_health': 'الأدوات المنزلية',
+      'clothing_shoes': 'الملابس والأحذية',
+      'furniture': 'أثاث المنزل',
+      'wholesalers': 'تجار الجملة',
+      'distributors': 'الموزعين',
+      'others': 'أسواق أخرى',
+      'suggestions': 'اقتراحات وشكاوي',
+      'ad_contact': 'تواصل للإعلانات',
+      // 🔥 أضف الترجمات للقيم العربية التي قد تأتي من API
+      'الملابس والأحذية': 'الملابس والأحذية',
+      'التوظيف': 'التوظيف',
+      'المناقصات': 'المناقصات',
+    };
 
-  // ✅ تم نقل هذه الدالة إلى PostHelpers.parseToInt
+    return categoryMap[category] ?? category;
+  }
+
+  int _parseToInt(dynamic value, {int defaultValue = 0}) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    return defaultValue;
+  }
 
   Future<void> _performSearch(String query) async {
     if (query.trim().isEmpty) {
@@ -40,15 +82,49 @@ class _SearchPageState extends State<SearchPage> {
 
     try {
       final result = await AuthService.search(query);
+      print('بيانات البحث: $result');
 
       if (!mounted) return;
 
       if (result['success'] == true && result['data'] != null) {
-        // ✅ استخدام الدالة المركزية من PostHelpers
         List<Map<String, dynamic>> rawPosts =
             List<Map<String, dynamic>>.from(result['data']['posts'] ?? []);
 
-        final processedPosts = PostHelpers.processPostsList(rawPosts);
+        // 🔥 معالجة البيانات مباشرة بدون PostHelpers
+        final processedPosts = rawPosts.map((post) {
+          // ✅ معالجة الصور
+          List<String> images = (post['images'] as List<dynamic>?)
+                  ?.map((imageUrl) => imageUrl.toString())
+                  .toList() ??
+              [];
+
+          // ✅ معالجة الفيديو
+          String? videoUrl = post['video_url'];
+
+          // ✅ تحويل القسم للعربية
+          String category = _convertCategoryToArabic(post['category'] ?? '');
+
+          return {
+            'id': _parseToInt(post['id']),
+            'user_id': _parseToInt(post['user_id']),
+            'user_name': post['user_name'] ?? 'مستخدم', // 🔥 مباشرة من post
+            'content': post['content'] ?? '',
+            'title': post['title'] ?? '',
+            'category': category,
+            'price': post['price']?.toString(),
+            'location': post['location'],
+            'images': images,
+            'video_url': videoUrl,
+            'likes_count': _parseToInt(post['likes_count'], defaultValue: 0),
+            'comments_count':
+                _parseToInt(post['comments_count'], defaultValue: 0),
+            'created_at': post['created_at'],
+            'isLiked': post['is_liked_by_user'] ?? false,
+            // إضافة الحقول الإضافية التي قد تحتاجها
+            'user_avatar':
+                'https://via.placeholder.com/50x50/cccccc/ffffff?text=${(post['user_name'] ?? 'U').substring(0, 1)}',
+          };
+        }).toList();
 
         setState(() {
           _userResults =
@@ -82,7 +158,6 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildUserCard(Map<String, dynamic> user) {
-    // ... (هذا الجزء يبقى كما هو بدون تغيير)
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 2,
@@ -93,7 +168,10 @@ class _SearchPageState extends State<SearchPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => UserProfilePage(
-                    userId: user['id'], userName: user['full_name']),
+                    userId: user['id'],
+                    userName: user['user_name'] ??
+                        user['full_name'] ??
+                        'مستخدم'), // 🔥 استخدام full_name كبديل
               ));
         },
         borderRadius: BorderRadius.circular(12),
@@ -103,10 +181,10 @@ class _SearchPageState extends State<SearchPage> {
             children: [
               CircleAvatar(
                 radius: 25,
-                // يمكنك تحسين الصورة الرمزية هنا إذا أردت
                 backgroundColor: Colors.grey.shade300,
                 child: Text(
-                  user['full_name']?.substring(0, 1) ?? 'U',
+                  (user['user_name'] ?? user['full_name'] ?? 'U')
+                      .substring(0, 1), // 🔥 استخدام full_name كبديل
                   style: TextStyle(
                       color: Colors.black, fontWeight: FontWeight.bold),
                 ),
@@ -116,7 +194,10 @@ class _SearchPageState extends State<SearchPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(user['full_name'] ?? 'مستخدم',
+                    Text(
+                        user['user_name'] ??
+                            user['full_name'] ??
+                            'مستخدم', // 🔥 استخدام full_name كبديل
                         style: const TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 4),
@@ -213,7 +294,7 @@ class _SearchPageState extends State<SearchPage> {
                                           .titleLarge),
                                 ),
                                 ..._postResults
-                                    .map((post) => PostCardWidget(
+                                    .map((post) => PostCardWidgetSearch(
                                           post: post,
                                           onDelete: () {
                                             setState(() {

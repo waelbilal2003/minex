@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'post_card_widget_profile.dart';
 import 'auth_service.dart';
 import 'package:intl/intl.dart';
 import 'messages_page.dart';
 import 'post_card_widget.dart';
 import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
+import 'post_utils.dart'; // <-- ✨ إضافة هذا الاستيراد
 
 class UserProfilePage extends StatefulWidget {
   final int userId;
@@ -28,6 +30,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
     _fetchUserData();
   }
 
+  Map<String, dynamic> _processUserData(Map<String, dynamic> rawUser) {
+    return {
+      'id': rawUser['id'],
+      'full_name': rawUser['full_name'],
+      'display_name': rawUser['full_name'] ?? 'مستخدم',
+      'email': rawUser['email'],
+      'phone': rawUser['phone'],
+      'gender': (rawUser['gender'] ?? 'ذكر').toString(),
+      'is_store': rawUser['is_store'] ?? false,
+      'created_at': rawUser['created_at'],
+    };
+  }
+
   Future<void> _fetchUserData() async {
     if (!mounted) return;
     setState(() {
@@ -37,20 +52,24 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
     try {
       final result = await AuthService.getUserProfileAndPosts(widget.userId);
+      print('Raw serverrrrrrr response: $result');
 
       if (!mounted) return;
 
       if (result['success'] == true && result['data'] != null) {
         // ✅ استخدام الدالة الموحّدة لمعالجة بيانات المستخدم
-        _userData = PostHelpers.processUserData(result['data']['user']);
+        //_userData = PostHelpers.processUserData(result['data']['user']);
+        _userData = _processUserData(result['data']['user']);
         List<Map<String, dynamic>> rawPosts =
             List<Map<String, dynamic>>.from(result['data']['posts'] ?? []);
 
         // ✅ استخدام الدالة المركزية من PostHelpers
-        _posts = PostHelpers.processPostsList(
-          rawPosts,
-          fallbackUserData: _userData,
-        );
+        //_posts = PostUtils.standardizePostsResponse(rawPosts);
+        _posts = PostUtils.standardizePostsResponse({
+          'data': {'posts': rawPosts}
+        });
+
+        print('📦 بيانات المستخدم: ${result['data']['user']}');
 
         setState(() {});
       } else {
@@ -128,7 +147,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           else
             SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
-                return PostCardWidget(
+                return PostCardWidgetProfile(
                   post: _posts[index],
                   onDelete: () {
                     setState(() {

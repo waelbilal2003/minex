@@ -5,7 +5,6 @@ import 'dart:async';
 import 'create_post_page.dart';
 import 'post_card_widget.dart'; // <-- ✨ إضافة مهمة
 import 'dart:convert';
-import 'post_helpers.dart'; // <-- ✨ استيراد الدوال المساعدة المركزية
 
 class PostsPage extends StatefulWidget {
   final int categoryId;
@@ -13,7 +12,7 @@ class PostsPage extends StatefulWidget {
 
   const PostsPage({
     Key? key,
-    required this.categoryId,
+    required this.categoryId, // ✅ الآن نستقبل الـ ID
     required this.categoryName,
   }) : super(key: key);
   @override
@@ -308,14 +307,15 @@ class _PostsPageState extends State<PostsPage> {
     }
 
     try {
-      print('📊 جلب المنشورات للقسم: ${widget.categoryName}');
-      // ✅ جلب المنشورات حسب التصنيف
-      final result = await AuthService.getPostsByCategory(
-        widget.categoryName, // ✅ نمرر اسم الفئة النصي مباشرة
+      print('📊 جلب المنشورات للقسم ID: ${widget.categoryId}');
+
+      // ✅ التصحيح: استدعاء الدالة الجديدة
+      final result = await AuthService.getPostsByCategoryId(
+        widget.categoryId, // ✅ نمرر الـ ID كرقم
         page: _currentPage,
       );
-      if (!mounted) return;
 
+      if (!mounted) return;
       // --- ✅ معالجة مرنة لصيغة البيانات القادمة من السيرفر ---
       List<dynamic>? postsList;
 
@@ -346,8 +346,44 @@ class _PostsPageState extends State<PostsPage> {
       // ✅ الآن نحللها بشكل آمن
       final newPosts = List<Map<String, dynamic>>.from(postsList);
 
-      // ✅ استخدام الدالة المركزية من PostHelpers
-      final processedNewPosts = PostHelpers.processPostsList(newPosts);
+      final processedNewPosts = newPosts.map((post) {
+        // 1. إصلاح معالجة الصور: التعامل مع قائمة النصوص مباشرة
+        List<String> images = (post['images'] as List<dynamic>?)
+                ?.map((imageUrl) => imageUrl.toString())
+                .toList() ??
+            [];
+
+        // 2. إصلاح معالجة الفيديو
+        String? videoUrl =
+            post['video'] != null && post['video']['video_path'] != null
+                ? post['video']['video_path']
+                : null;
+
+        // 3. معلومات المستخدم
+        String userName = post['user']?['full_name'] ?? 'مستخدم';
+        int userId = post['user']?['id'] ?? -1;
+
+        return {
+          'id': post['id'],
+          'user_id': userId,
+          'user_name': userName,
+          'user_avatar':
+              'https://via.placeholder.com/50x50/cccccc/ffffff?text=${userName.isNotEmpty ? userName.substring(0, 1) : 'U'}',
+          'content': post['content'] ?? '',
+          'title': post['title'] ?? '',
+          'category': post['category'] ?? '',
+          'price': post['price']?.toString(),
+          'location': post['location'],
+          'images': images,
+          'video_url': videoUrl,
+          'likes_count': post['likes_count'] ?? 0,
+          'comments_count': post['comments_count'] ?? 0,
+          'created_at': post['created_at'],
+          'isLiked': post['is_liked_by_user'] ?? false,
+          'gender': post['user']?['gender'],
+          'user_type': post['user']?['user_type'] ?? 'person',
+        };
+      }).toList();
 
       if (mounted) {
         setState(() {
@@ -391,9 +427,6 @@ class _PostsPageState extends State<PostsPage> {
           .showSnackBar(SnackBar(content: Text(message)));
     }
   }
-
-  // --- ✨ تم حذف دوال: _buildPostCard, _buildMediaWidget, _buildImagesWidget, _deletePost, _showReportDialog, _getImageUrl
-  // --- لأن PostCardWidget تقوم بكل هذا الآن.
 
   @override
   Widget build(BuildContext context) {

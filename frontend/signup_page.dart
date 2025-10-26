@@ -24,7 +24,7 @@ class _SignupPageState extends State<SignupPage> {
   String _selectedGender = 'ذكر';
   String _registrationType = 'phone'; // 'phone', 'email', 'both'
   String _selectedUserType = 'person'; // 'person' or 'store'
-  final TextEditingController _apiUrlController = TextEditingController();
+  // final TextEditingController _apiUrlController = TextEditingController(); // 1. تم تعليق وحدة التحكم
 
   // قائمة الدول مع الأيموجيز الحقيقية للأعلام
   final List<Map<String, dynamic>> _countries = [
@@ -51,6 +51,7 @@ class _SignupPageState extends State<SignupPage> {
 
   late Map<String, dynamic> _selectedCountry;
 
+  /* // 4. تم تعليق دالة تحميل عنوان API بالكامل
   void _loadSavedApiUrl() async {
     final prefs = await SharedPreferences.getInstance();
     final savedUrl = prefs.getString('api_url');
@@ -60,22 +61,21 @@ class _SignupPageState extends State<SignupPage> {
         AuthService.baseUrl = savedUrl;
       });
     } else {
-      // إضافة قيمة افتراضية إذا لم يكن هناك عنوان محفوظ
       _apiUrlController.text = AuthService.baseUrl;
     }
   }
+  */
 
+  /* // 5. تم تعليق دالة عرض مربع حوار تغيير عنوان API بالكامل
   void _showApiUrlDialog() async {
-    // استخدام context آمن قبل استدعاء showDialog
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    // تجهيز المتحكم بنفس القيمة الحالية لضمان عرضها بشكل صحيح
     _apiUrlController.text = AuthService.baseUrl;
 
     showDialog(
       context: context,
-      barrierDismissible: false, // منع إغلاق النافذة بالضغط في الخارج
+      barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('تغيير عنوان API'),
@@ -97,22 +97,18 @@ class _SignupPageState extends State<SignupPage> {
               onPressed: () async {
                 final newUrl = _apiUrlController.text.trim();
 
-                // 1. التحقق من أن الرابط غير فارغ ويبدأ بالصيغة الصحيحة
                 if (newUrl.isNotEmpty &&
                     (newUrl.startsWith('http://') ||
                         newUrl.startsWith('https://'))) {
-                  // 2. تنظيف الرابط: إزالة الشرطة المائلة (/) من النهاية لمنع التكرار
                   final formattedUrl = newUrl.endsWith('/')
                       ? newUrl.substring(0, newUrl.length - 1)
                       : newUrl;
 
-                  // 3. تحديث القيمة الحالية وحفظها بشكل دائم
                   setState(() {
                     AuthService.baseUrl = formattedUrl;
                   });
                   await prefs.setString('api_url', formattedUrl);
 
-                  // التأكد من أن الـ Widget ما زال موجوداً قبل عرض SnackBar
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -123,7 +119,6 @@ class _SignupPageState extends State<SignupPage> {
                     Navigator.pop(dialogContext);
                   }
                 } else {
-                  // 4. عرض رسالة خطأ واضحة في حال كان الإدخال غير صحيح
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -142,6 +137,7 @@ class _SignupPageState extends State<SignupPage> {
       },
     );
   }
+  */
 
   @override
   void initState() {
@@ -150,7 +146,7 @@ class _SignupPageState extends State<SignupPage> {
       (country) => country['code'] == '+963',
       orElse: () => _countries[0],
     );
-    _loadSavedApiUrl();
+    // _loadSavedApiUrl(); // 2. تم تعليق استدعاء الدالة
   }
 
   @override
@@ -160,13 +156,14 @@ class _SignupPageState extends State<SignupPage> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _apiUrlController.dispose(); // ✅ أضف هذا
+    // _apiUrlController.dispose(); // 3. تم تعليق التخلص من وحدة التحكم
     super.dispose();
   }
 
   Color get _primaryColor =>
       _selectedGender == 'ذكر' ? Colors.blue : Colors.pink;
 
+  // ... (بقية الدوال تبقى كما هي)
   void _checkPasswordsMatch() {
     setState(() {
       _passwordsMatch =
@@ -223,18 +220,47 @@ class _SignupPageState extends State<SignupPage> {
       if (!mounted) return;
 
       if (result['success'] == true) {
-        // --- ✅ تحسين إضافي: تحديث البيانات قبل الانتقال ---
-        // هذا يضمن أن كل أجزاء التطبيق تعرف بوجود المستخدم الجديد
         await AuthService.loadUserData();
 
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const LoginPage()),
           (Route<dynamic> route) => false,
         );
       } else {
+        // --- بداية التعديلات الجديدة ---
+        String errorMessage = 'فشل إنشاء الحساب، حاول مرة أخرى لاحقاً.';
+
+        // تحقق مما إذا كانت الاستجابة تحتوي على أخطاء تحقق (Validation Errors)
+        if (result.containsKey('errors') && result['errors'] is Map) {
+          final errors = Map<String, dynamic>.from(result['errors']);
+
+          // ابحث عن خطأ متعلق بالإيميل أو رقم الهاتف
+          // الخادم قد يستخدم مفتاح 'email_or_phone' أو 'email' أو 'phone'
+          if (errors.containsKey('email_or_phone')) {
+            errorMessage = 'هذا البريد الإلكتروني أو رقم الهاتف مستخدم بالفعل.';
+          } else if (errors.containsKey('email')) {
+            errorMessage = 'هذا البريد الإلكتروني مستخدم بالفعل.';
+          } else if (errors.containsKey('phone')) {
+            errorMessage = 'رقم الهاتف مستخدم بالفعل.';
+          } else {
+            // إذا كان هناك خطأ آخر، اعرض أول رسالة خطأ تجدها
+            if (errors.isNotEmpty) {
+              final firstErrorKey = errors.keys.first;
+              final firstErrorMessages = errors[firstErrorKey];
+              if (firstErrorMessages is List && firstErrorMessages.isNotEmpty) {
+                errorMessage = firstErrorMessages.first.toString();
+              }
+            }
+          }
+        } else if (result.containsKey('message')) {
+          // إذا لم تكن هناك أخطاء تحقق، استخدم الرسالة العامة
+          errorMessage = result['message'].toString();
+        }
+        // --- نهاية التعديلات الجديدة ---
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'فشل إنشاء الحساب'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
           ),
         );
@@ -243,7 +269,7 @@ class _SignupPageState extends State<SignupPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('حدث خطأ في الاتصال بالخادم: $e'),
+            content: Text('حدث خطأ غير متوقع.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -264,15 +290,15 @@ class _SignupPageState extends State<SignupPage> {
         centerTitle: true,
         backgroundColor: Colors.white,
         foregroundColor: _primaryColor,
-        // ✅ أضف هذا الجزء
         actions: [
+          /* // 6. تم تعليق زر الإعدادات
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _showApiUrlDialog,
             tooltip: 'تغيير عنوان API',
           ),
+          */
         ],
-        // ✅ نهاية الإضافة
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -391,13 +417,11 @@ class _SignupPageState extends State<SignupPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // حقول رقم الهاتف (إذا كان مطلوباً)
-                // حقول رقم الهاتف (إذا كان مطلوباً)
                 if (_registrationType == 'phone' ||
                     _registrationType == 'both') ...[
                   Row(
                     children: [
-                      // رقم الهاتف (الآن على اليمين)
+                      // رقم الهاتف
                       Expanded(
                         child: TextFormField(
                           controller: _phoneController,
@@ -417,18 +441,12 @@ class _SignupPageState extends State<SignupPage> {
                                   BorderSide(color: _primaryColor, width: 2),
                             ),
                             prefixIcon: Icon(Icons.phone, color: _primaryColor),
-                            // إذا كنت تريد التأكد من محاذاة النص داخل الحقل إلى اليسار
-                            // (عادةً تكون كذلك في اللغة العربية تلقائيًا، لكن يمكنك إضافتها للتأكيد)
-                            // hintTextDirection: TextDirection.ltr, // هذا لمحاذاة النص داخل الحقل
-                            // hintText: '123456789', // مثال على تلميح
-                            // hintStyle: TextStyle(color: Colors.grey),
                           ),
-                          //textAlign: TextAlign.left, // عادةً غير ضروري مع TextDirection.rtl
                           validator: _validatePhone,
                         ),
                       ),
                       const SizedBox(width: 10),
-                      // رمز الدولة (الآن على اليسار)
+                      // رمز الدولة
                       Expanded(
                         child: DropdownButtonFormField<Map<String, dynamic>>(
                           value: _selectedCountry,
@@ -447,7 +465,6 @@ class _SignupPageState extends State<SignupPage> {
                             return DropdownMenuItem(
                               value: country,
                               child: Row(
-                                // mainAxisAlignment: MainAxisAlignment.end, // إذا أردت محاذاة النص والعلم إلى اليمين داخل القائمة
                                 children: [
                                   Text(
                                     country['name'],

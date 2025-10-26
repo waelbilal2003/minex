@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'posts_page.dart';
 import 'auth_service.dart';
 import 'vip_ads_widget.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class CategoriesPage extends StatefulWidget {
   const CategoriesPage({Key? key}) : super(key: key);
@@ -12,7 +15,11 @@ class CategoriesPage extends StatefulWidget {
 
 class _CategoriesPageState extends State<CategoriesPage> {
   final PageController _vipAdsController = PageController();
+  int _currentVipAdIndex = 0;
   String _userGender = 'ذكر'; // افتراضي
+
+  // قائمة الإعلانات المميزة VIP
+  List<Map<String, dynamic>> _vipAds = [];
 
   // الأقسام العلوية الجديدة
   // ✨ تم إضافة ID لكل قسم هنا ✨
@@ -34,58 +41,58 @@ class _CategoriesPageState extends State<CategoriesPage> {
   ];
 
   final List<Map<String, dynamic>> _mainCategories = [
-    {'id': 1, 'name': 'التوظيف', 'image': 'assets/images/job.png'},
-    {'id': 2, 'name': 'المناقصات', 'image': 'assets/images/tenders.png'},
-    {'id': 3, 'name': 'الموردين', 'image': 'assets/images/suppliers.png'},
+    {'id': 13, 'name': 'التوظيف', 'image': 'assets/images/job.png'},
+    {'id': 14, 'name': 'المناقصات', 'image': 'assets/images/tenders.png'},
+    {'id': 15, 'name': 'الموردين', 'image': 'assets/images/suppliers.png'},
     {
-      'id': 4,
+      'id': 16,
       'name': 'العروض العامة',
       'image': 'assets/images/general_offers.png'
     },
   ];
 
   final List<Map<String, dynamic>> _markets = [
-    {'id': 5, 'name': 'السيارات', 'image': 'assets/images/cars.png'},
+    {'id': 1, 'name': 'السيارات', 'image': 'assets/images/cars.png'},
     {
-      'id': 6,
+      'id': 2,
       'name': 'الدراجات النارية',
       'image': 'assets/images/motorcycles.png'
     },
     {
-      'id': 7,
+      'id': 3,
       'name': 'تجارة العقارات',
       'image': 'assets/images/real_estate.png'
     },
     {
-      'id': 8,
+      'id': 4,
       'name': 'المستلزمات العسكرية',
       'image': 'assets/images/weapons.png'
     },
     {
-      'id': 9,
+      'id': 5,
       'name': 'الهواتف والالكترونيات',
       'image': 'assets/images/electronics.png'
     },
     {
-      'id': 10,
+      'id': 6,
       'name': 'الأدوات الكهربائية',
       'image': 'assets/images/electrical.png'
     },
     {
-      'id': 11,
+      'id': 7,
       'name': 'ايجار العقارات',
       'image': 'assets/images/house_rent.png'
     },
     {
-      'id': 12,
+      'id': 8,
       'name': 'الثمار والحبوب',
       'image': 'assets/images/agriculture.png'
     },
-    {'id': 13, 'name': 'المواد الغذائية', 'image': 'assets/images/food.webp'},
-    {'id': 14, 'name': 'المطاعم', 'image': 'assets/images/restaurants.webp'},
-    {'id': 15, 'name': 'مواد التدفئة', 'image': 'assets/images/heating.png'},
+    {'id': 9, 'name': 'المواد الغذائية', 'image': 'assets/images/food.webp'},
+    {'id': 10, 'name': 'المطاعم', 'image': 'assets/images/restaurants.webp'},
+    {'id': 11, 'name': 'مواد التدفئة', 'image': 'assets/images/heating.png'},
     {
-      'id': 16,
+      'id': 12,
       'name': 'المكياج و الاكسسوار',
       'image': 'assets/images/accessories.webp'
     },
@@ -163,18 +170,19 @@ class _CategoriesPageState extends State<CategoriesPage> {
       ),
       child: InkWell(
         onTap: () {
-          // ✨ --- بداية التعديل --- ✨
-          // تأكد من أن الأقسام العلوية لها وظيفة محددة أو صفحة خاصة بها
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PostsPage(
-                categoryId: category['id'], // ✅ الرقم التعريفي
-                categoryName: category['name'],
+          if (category['id'] == 25 || category['id'] == 26) {
+            _showContactDialog(context);
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PostsPage(
+                  categoryId: category['id'],
+                  categoryName: category['name'],
+                ),
               ),
-            ),
-          );
-          // ✨ --- نهاية التعديل --- ✨
+            );
+          }
         },
         borderRadius: BorderRadius.circular(8),
         child: Column(
@@ -224,19 +232,15 @@ class _CategoriesPageState extends State<CategoriesPage> {
       ),
       child: InkWell(
         onTap: () {
-          // --- ✨ بداية التعديل هنا ✨ ---
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => PostsPage(
-                // تم إرسال الرقم التعريفي الصحيح
-                categoryId: category['id'],
-                // تم إرسال الاسم لعرضه في شريط العنوان
+                categoryId: category['id'], // ✅ إرسال الـ ID بدلاً من الاسم
                 categoryName: category['name'],
               ),
             ),
           );
-          // --- نهاية التعديل هنا ---
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -315,19 +319,15 @@ class _CategoriesPageState extends State<CategoriesPage> {
       ),
       child: InkWell(
         onTap: () {
-          // --- ✨ بداية التعديل هنا ✨ ---
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => PostsPage(
-                // تم إرسال الرقم التعريفي الصحيح
-                categoryId: market['id'],
-                // تم إرسال الاسم لعرضه في شريط العنوان
+                categoryId: market['id'], // ✅ إرسال الـ ID بدلاً من الاسم
                 categoryName: market['name'],
               ),
             ),
           );
-          // --- نهاية التعديل هنا ---
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -384,6 +384,142 @@ class _CategoriesPageState extends State<CategoriesPage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showVipAdDetails(Map<String, dynamic> ad, BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+          title: Text(
+            ad['title'],
+            style: TextStyle(
+              color: isDarkMode ? Colors.white : Colors.black,
+              fontSize: 16,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 200,
+                  child: PageView.builder(
+                    itemCount: ad['images'].length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          image: DecorationImage(
+                            image: NetworkImage(ad['images'][index]),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'الوصف:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  ad['description'],
+                  style: TextStyle(
+                    color: isDarkMode ? Colors.white : Colors.black,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'السعر: ${ad['price']} دولار',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  'الموقع: ${ad['location']}',
+                  style: TextStyle(
+                    color: isDarkMode ? Colors.white : Colors.black,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('فتح واتساب: ${ad['phone']}')),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.message,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      label: const Text(
+                        'واتساب',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('فتح الدردشة الداخلية')),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.chat,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      label: const Text(
+                        'دردشة',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'إغلاق',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -495,5 +631,115 @@ class _CategoriesPageState extends State<CategoriesPage> {
   void dispose() {
     _vipAdsController.dispose();
     super.dispose();
+  }
+
+  void _showContactDialog(BuildContext context) {
+    const phoneNumber = '+44 7950 227398';
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  FontAwesomeIcons.whatsapp,
+                  color: Colors.green,
+                  size: 60,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'تواصل عبر واتساب',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'للاقتراحات أو التواصل الإعلاني\nاستخدم الرقم التالي:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDarkMode ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      SelectableText(
+                        phoneNumber,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, color: Colors.blue),
+                        onPressed: () {
+                          Clipboard.setData(
+                              const ClipboardData(text: phoneNumber));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('تم نسخ الرقم'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final url = Uri.parse(
+                        'https://wa.me/${phoneNumber.replaceAll(' ', '').replaceAll('+', '')}');
+                    launchUrl(url, mode: LaunchMode.externalApplication);
+                  },
+                  icon: const Icon(Icons.chat, color: Colors.white),
+                  label: const Text('فتح واتساب',
+                      style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'إغلاق',
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

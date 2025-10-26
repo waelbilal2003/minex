@@ -7,6 +7,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:photo_view/photo_view.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminPage extends StatefulWidget {
   const AdminPage({Key? key}) : super(key: key);
@@ -18,7 +21,8 @@ class AdminPage extends StatefulWidget {
 class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   bool _isLoading = true;
   Map<String, dynamic> _statistics = {};
-
+  final _notificationTitleController = TextEditingController();
+  final _notificationBodyController = TextEditingController();
   // القوائم الأصلية
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _posts = [];
@@ -42,9 +46,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   final TextEditingController _vipTitleController = TextEditingController();
   final TextEditingController _vipDescController = TextEditingController();
 
-  // Controllers for notification sending
-  final TextEditingController _notificationTitleController =
-      TextEditingController();
   final TextEditingController _notificationMessageController =
       TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -478,32 +479,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _sendNotification() async {
-    if (_notificationTitleController.text.isEmpty ||
-        _notificationMessageController.text.isEmpty) {
-      _showErrorSnackBar('الرجاء إدخال عنوان ونص الإشعار');
-      return;
-    }
-
-    try {
-      final result = await AuthService.sendNotification(
-        title: _notificationTitleController.text,
-        message: _notificationMessageController.text,
-        phone: _phoneController.text.isEmpty ? null : _phoneController.text,
-      );
-
-      if (result['success'] == true) {
-        _showSuccessSnackBar(result['message'] ?? 'تم إرسال الإشعار بنجاح');
-        _clearNotificationForm();
-      } else {
-        _showErrorSnackBar(result['message'] ?? 'فشل في إرسال الإشعار');
-      }
-    } catch (e) {
-      print('Error sending notification: $e');
-      _showErrorSnackBar('خطأ في إرسال الإشعار: $e');
-    }
-  }
-
   void _clearNotificationForm() {
     _notificationTitleController.clear();
     _notificationMessageController.clear();
@@ -687,8 +662,6 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
     _vipPriceController.dispose();
     _vipLocationController.dispose();
     _vipPhoneController.dispose();
-    _notificationTitleController.dispose();
-    _notificationMessageController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -1595,75 +1568,111 @@ class _AdminPageState extends State<AdminPage> with TickerProviderStateMixin {
   }
 
   Widget _buildNotificationsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'إرسال إشعار',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _notificationTitleController,
-                    decoration: const InputDecoration(
-                      labelText: 'عنوان الإشعار',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _notificationMessageController,
-                    decoration: const InputDecoration(
-                      labelText: 'نص الإشعار',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(
-                      labelText:
-                          'رقم الهاتف (اختياري - اتركه فارغاً للإرسال للجميع)',
-                      border: OutlineInputBorder(),
-                      helperText:
-                          'إذا تركت هذا الحقل فارغاً، سيتم إرسال الإشعار لجميع المستخدمين',
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _sendNotification,
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      label: Text(
-                        _phoneController.text.isEmpty
-                            ? 'إرسال لجميع المستخدمين'
-                            : 'إرسال لمستخدم واحد',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          TextField(
+            controller: _notificationTitleController,
+            decoration: InputDecoration(
+              labelText: 'عنوان الإشعار',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          SizedBox(height: 16),
+          TextField(
+            controller: _notificationBodyController,
+            decoration: InputDecoration(
+              labelText: 'نص الإشعار',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () async {
+              if (_notificationTitleController.text.isNotEmpty &&
+                  _notificationBodyController.text.isNotEmpty) {
+                // جلب التوكنات من Firestore
+                QuerySnapshot snapshot = await FirebaseFirestore.instance
+                    .collection('users')
+                    .where('fcmToken', isNotEqualTo: null)
+                    .get();
+
+                List<String> tokens = snapshot.docs
+                    .map((doc) => doc.get('fcmToken') as String)
+                    .toList();
+
+                if (tokens.isNotEmpty) {
+                  // إرسال الإشعار عبر Firebase Cloud Messaging
+                  await _sendNotification(
+                    _notificationTitleController.text,
+                    _notificationBodyController.text,
+                    tokens,
+                  );
+
+                  // مسح الحقول بعد الإرسال
+                  _notificationTitleController.clear();
+                  _notificationBodyController.clear();
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم إرسال الإشعار بنجاح')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text('لا يوجد مستخدمون لديهم توكنات FCM')),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('يرجى ملء جميع الحقول')),
+                );
+              }
+            },
+            child: Text('إرسال إشعار'),
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 16),
             ),
           ),
         ],
       ),
     );
+  }
+
+// دالة إرسال الإشعار عبر Firebase Cloud Messaging
+  Future<void> _sendNotification(
+      String title, String body, List<String> tokens) async {
+    // إنشاء رسالة الإشعار
+    final message = {
+      'notification': {
+        'title': title,
+        'body': body,
+      },
+      'data': {
+        'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+        'status': 'done',
+      },
+      'registration_ids': tokens,
+    };
+
+    // إعداد الطلب
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'key=AIzaSyCzWwuVRe9LujNzXcHxSZf0NcJAx5b2MLo',
+    };
+
+    // إرسال الطلب
+    final response = await http.post(
+      Uri.parse('https://fcm.googleapis.com/fcm/send'),
+      headers: headers,
+      body: json.encode(message),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('فشل إرسال الإشعار: ${response.body}');
+    }
   }
 
   void _showPostDetails(Map<String, dynamic> post) {

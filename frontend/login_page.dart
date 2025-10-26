@@ -16,15 +16,15 @@ class _LoginPageState extends State<LoginPage> {
   final _emailOrPhoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  final TextEditingController _apiUrlController = TextEditingController();
+  // final TextEditingController _apiUrlController = TextEditingController(); // 1. تم تعليق وحدة التحكم
 
   @override
   void initState() {
     super.initState();
-    _loadSavedApiUrl(); // هذا السطر يضاف هنا
+    // _loadSavedApiUrl(); // 2. تم تعليق استدعاء دالة التحميل
   }
 
-  // هذه الدالة تضاف هنا داخل الكلاس
+  /* // 3. تم تعليق دالة تحميل عنوان API المحفوظ بالكامل
   void _loadSavedApiUrl() async {
     final prefs = await SharedPreferences.getInstance();
     final savedUrl = prefs.getString('api_url');
@@ -34,31 +34,29 @@ class _LoginPageState extends State<LoginPage> {
         AuthService.baseUrl = savedUrl;
       });
     } else {
-      // إضافة قيمة افتراضية إذا لم يكن هناك عنوان محفوظ
       _apiUrlController.text = AuthService.baseUrl;
     }
   }
+  */
 
   @override
   void dispose() {
     _emailOrPhoneController.dispose();
     _passwordController.dispose();
-    _apiUrlController.dispose();
+    // _apiUrlController.dispose(); // تم تعليق هذا أيضاً لتجنب الأخطاء
     super.dispose();
   }
 
-  // دالة لعرض مربع حوار لتغيير عنوان API
+  /* // 4. تم تعليق دالة عرض مربع حوار تغيير عنوان API بالكامل
   void _showApiUrlDialog() async {
-    // استخدام context آمن قبل استدعاء showDialog
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    // تجهيز المتحكم بنفس القيمة الحالية لضمان عرضها بشكل صحيح
     _apiUrlController.text = AuthService.baseUrl;
 
     showDialog(
       context: context,
-      barrierDismissible: false, // منع إغلاق النافذة بالضغط في الخارج
+      barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('تغيير عنوان API'),
@@ -80,22 +78,18 @@ class _LoginPageState extends State<LoginPage> {
               onPressed: () async {
                 final newUrl = _apiUrlController.text.trim();
 
-                // 1. التحقق من أن الرابط غير فارغ ويبدأ بالصيغة الصحيحة
                 if (newUrl.isNotEmpty &&
                     (newUrl.startsWith('http://') ||
                         newUrl.startsWith('https://'))) {
-                  // 2. تنظيف الرابط: إزالة الشرطة المائلة (/) من النهاية لمنع التكرار
                   final formattedUrl = newUrl.endsWith('/')
                       ? newUrl.substring(0, newUrl.length - 1)
                       : newUrl;
 
-                  // 3. تحديث القيمة الحالية وحفظها بشكل دائم
                   setState(() {
                     AuthService.baseUrl = formattedUrl;
                   });
                   await prefs.setString('api_url', formattedUrl);
 
-                  // التأكد من أن الـ Widget ما زال موجوداً قبل عرض SnackBar
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -106,7 +100,6 @@ class _LoginPageState extends State<LoginPage> {
                     Navigator.pop(dialogContext);
                   }
                 } else {
-                  // 4. عرض رسالة خطأ واضحة في حال كان الإدخال غير صحيح
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -125,6 +118,7 @@ class _LoginPageState extends State<LoginPage> {
       },
     );
   }
+  */
 
   void _navigateToSignup() {
     Navigator.push(
@@ -146,8 +140,6 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
 
         if (result['success'] == true) {
-          // --- هذا هو التعديل الجوهري ---
-          // الانتقال مع حذف كل شيء سابق (مسح مكدس الصفحات)
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const HomePage()),
             (Route<dynamic> route) => false,
@@ -155,7 +147,7 @@ class _LoginPageState extends State<LoginPage> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message'] ?? 'فشل تسجيل الدخول'),
+              content: Text(' فشل تسجيل الدخول بالرجاء المحاولة لاحقاً'),
               backgroundColor: Colors.red,
             ),
           );
@@ -164,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('حدث خطأ غير متوقع: $e'),
+              content: Text('حدث خطأ في الخادم'),
               backgroundColor: Colors.red,
             ),
           );
@@ -197,14 +189,14 @@ class _LoginPageState extends State<LoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message']),
+          content: Text(' '),
           backgroundColor: result['success'] ? Colors.green : Colors.red,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('حدث خطأ غير متوقع: $e'),
+          content: Text('حدث خطأ في الخادم'),
           backgroundColor: Colors.red,
         ),
       );
@@ -222,11 +214,13 @@ class _LoginPageState extends State<LoginPage> {
         title: const Text('تسجيل الدخول'),
         centerTitle: true,
         actions: [
+          /* // 5. تم تعليق زر الإعدادات
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _showApiUrlDialog,
             tooltip: 'تغيير عنوان API',
           ),
+          */
         ],
       ),
       body: SingleChildScrollView(
@@ -317,7 +311,6 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: _isLoading
                         ? null
                         : () {
-                            // الانتقال إلى الصفحة الرئيسية كزائر
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(

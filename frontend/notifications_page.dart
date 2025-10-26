@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'comments_page.dart';
 import 'messages_page.dart';
+import 'notification_storage.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({Key? key}) : super(key: key);
@@ -51,66 +52,85 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
 
     try {
-      final result = await AuthService.getNotifications(
-        page: _currentPage,
-        limit: _notificationsPerPage,
-      );
+      // ✅ الخطوة 1: جلب الإشعارات المحلية المحفوظة من Firebase
+      List<Map<String, dynamic>> localNotifications =
+          await NotificationStorage.getNotifications();
 
-      if (result['success'] == true) {
-        // معالجة مختلفة لهيكل البيانات
-        List<Map<String, dynamic>> notifications = [];
-        dynamic data = result['data'];
+      print('📱 عدد الإشعارات المحلية: ${localNotifications.length}');
 
-        if (data is List) {
-          // إذا كانت البيانات قائمة مباشرة
-          notifications = List<Map<String, dynamic>>.from(data);
-        } else if (data is Map) {
-          // إذا كانت البيانات كائن يحتوي على notifications
-          notifications = List<Map<String, dynamic>>.from(
-              data['notifications'] ?? data['data'] ?? []);
-        }
+      // ✅ الخطوة 2: جلب الإشعارات من السيرفر (API)
+      List<Map<String, dynamic>> serverNotifications = [];
 
-        setState(() {
-          if (refresh || _currentPage == 1) {
-            _notifications = notifications;
-          } else {
-            _notifications.addAll(notifications);
+      try {
+        final result = await AuthService.getNotifications(
+          page: _currentPage,
+          limit: _notificationsPerPage,
+        );
+
+        if (result['success'] == true) {
+          dynamic data = result['data'];
+
+          if (data is List) {
+            serverNotifications = List<Map<String, dynamic>>.from(data);
+          } else if (data is Map) {
+            serverNotifications = List<Map<String, dynamic>>.from(
+                data['notifications'] ?? data['data'] ?? []);
           }
 
-          // حساب عدد الإشعارات غير المقروءة
-          if (data is Map) {
-            _unreadCount = data['unread_count'] ??
-                notifications.where((n) => n['is_read'] != 1).length;
-          } else {
-            _unreadCount = notifications.where((n) => n['is_read'] != 1).length;
-          }
-
-          _isLoading = false;
-          _isLoadingMore = false;
-        });
-      } else {
-        // التعامل مع الأخطاء المختلفة
-        String errorMessage = result['message'] ?? 'خطأ في تحميل الإشعارات';
-
-        // التحقق من كود الخطأ 404
-        if (result['status_code'] == 404 || errorMessage.contains('404')) {
-          errorMessage =
-              'لم يتم العثور على إشعارات. قد تحتاج إلى إعداد نظام الإشعارات في الخادم.';
+          print('📱 عدد الإشعارات من السيرفر: ${serverNotifications.length}');
         }
-
-        _showErrorMessage(errorMessage);
+      } catch (e) {
+        print('⚠️ لم يتم الحصول على إشعارات من السيرفر: $e');
+        // نكمل حتى لو فشل السيرفر
       }
+
+      // ✅ الخطوة 3: دمج الإشعارات (المحلية + السيرفر)
+      Map<String, Map<String, dynamic>> mergedMap = {};
+
+      // إضافة الإشعارات المحلية أولاً
+      for (var notification in localNotifications) {
+        String id = notification['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          mergedMap[id] = notification;
+        }
+      }
+
+      // إضافة إشعارات السيرفر (لن تستبدل المحلية لأن لها IDs مختلفة)
+      for (var notification in serverNotifications) {
+        String id = notification['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          mergedMap[id] = notification;
+        }
+      }
+
+      // تحويل المجموعة المدمجة إلى قائمة وترتيبها حسب التاريخ
+      List<Map<String, dynamic>> allNotifications = mergedMap.values.toList();
+      allNotifications.sort((a, b) {
+        DateTime dateA =
+            DateTime.tryParse(a['created_at'] ?? '') ?? DateTime.now();
+        DateTime dateB =
+            DateTime.tryParse(b['created_at'] ?? '') ?? DateTime.now();
+        return dateB.compareTo(dateA); // الأحدث أولاً
+      });
+
+      setState(() {
+        if (refresh || _currentPage == 1) {
+          _notifications = allNotifications;
+        } else {
+          _notifications.addAll(allNotifications);
+        }
+
+        // حساب عدد الإشعارات غير المقروءة
+        _unreadCount = _notifications.where((n) => n['is_read'] != 1).length;
+
+        _isLoading = false;
+        _isLoadingMore = false;
+      });
+
+      print('✅ إجمالي الإشعارات المعروضة: ${_notifications.length}');
     } catch (e) {
-      String errorMsg = 'خطأ في تحميل الإشعارات: $e';
-
-      // التعامل مع أخطاء الشبكة الشائعة
-      if (e.toString().contains('404')) {
-        errorMsg = 'نقطة نهاية الإشعارات غير متوفرة في الخادم (404)';
-      } else if (e.toString().contains('Connection')) {
-        errorMsg = 'خطأ في الاتصال بالخادم';
-      }
-
-      _showErrorMessage(errorMsg);
+      print('❌ خطأ في تحميل الإشعارات: $e');
+      _showErrorMessage('خطأ في تحميل الإشعارات: $e');
     }
   }
 
@@ -124,21 +144,26 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _markAllAsRead() async {
     try {
-      final result = await AuthService.markNotificationsAsRead();
+      // تحديث التخزين المحلي
+      await NotificationStorage.markAllAsRead();
 
-      if (result['success'] == true) {
-        setState(() {
-          for (var notification in _notifications) {
-            notification['is_read'] = 1;
-          }
-          _unreadCount = 0;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحديد جميع الإشعارات كمقروءة')),
-        );
-      } else {
-        _showErrorMessage(result['message'] ?? 'خطأ في تحديث الإشعارات');
+      // محاولة تحديث السيرفر
+      try {
+        await AuthService.markNotificationsAsRead();
+      } catch (e) {
+        print('⚠️ لم يتم تحديث السيرفر: $e');
       }
+
+      setState(() {
+        for (var notification in _notifications) {
+          notification['is_read'] = 1;
+        }
+        _unreadCount = 0;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تحديد جميع الإشعارات كمقروءة')),
+      );
     } catch (e) {
       _showErrorMessage('خطأ في تحديث الإشعارات: $e');
     }
@@ -149,17 +174,28 @@ class _NotificationsPageState extends State<NotificationsPage> {
     if (notification['is_read'] == 1) return;
 
     try {
-      final result = await AuthService.markNotificationsAsRead(
-          notificationIds: [notification['id']]);
+      String notificationId = notification['id']?.toString() ?? '';
 
-      if (result['success'] == true) {
-        setState(() {
-          _notifications[notificationIndex]['is_read'] = 1;
-          if (_unreadCount > 0) _unreadCount--;
-        });
+      // تحديث في التخزين المحلي
+      if (notificationId.isNotEmpty) {
+        await NotificationStorage.markAsRead(notificationId);
       }
+
+      // محاولة تحديث على السيرفر (إذا كان الإشعار من السيرفر)
+      try {
+        await AuthService.markNotificationsAsRead(
+            notificationIds: [notification['id']]);
+      } catch (e) {
+        // تجاهل خطأ السيرفر
+        print('⚠️ لم يتم تحديث السيرفر: $e');
+      }
+
+      setState(() {
+        _notifications[notificationIndex]['is_read'] = 1;
+        if (_unreadCount > 0) _unreadCount--;
+      });
     } catch (e) {
-      // تجاهل الأخطاء في تحديث حالة القراءة
+      print('❌ خطأ في تحديث حالة القراءة: $e');
     }
   }
 

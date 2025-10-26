@@ -24,30 +24,30 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   // قائمة الأسواق المحدثة لتتطابق مع صفحة الأقسام الجديدة
   final List<Map<String, dynamic>> _markets = [
-    {'id': 5, 'name': 'السيارات'},
-    {'id': 6, 'name': 'الدراجات النارية'},
-    {'id': 7, 'name': 'تجارة العقارات'},
-    {'id': 11, 'name': 'ايجار العقارات'},
-    {'id': 8, 'name': 'المستلزمات العسكرية'},
-    {'id': 9, 'name': 'الهواتف والالكترونيات'},
-    {'id': 10, 'name': 'الأدوات الكهربائية'},
+    {'id': 1, 'name': 'السيارات'},
+    {'id': 2, 'name': 'الدراجات النارية'},
+    {'id': 3, 'name': 'تجارة العقارات'},
+    {'id': 7, 'name': 'ايجار العقارات'},
+    {'id': 4, 'name': 'المستلزمات العسكرية'},
+    {'id': 5, 'name': 'الهواتف والالكترونيات'},
+    {'id': 6, 'name': 'الادوات الكهربائية'},
     {'id': 17, 'name': 'المواشي والحيوانات'},
-    {'id': 12, 'name': 'الثمار والحبوب'},
-    {'id': 13, 'name': 'المواد الغذائية'},
-    {'id': 14, 'name': 'المطاعم'},
-    {'id': 15, 'name': 'مواد التدفئة'},
-    {'id': 16, 'name': 'المكياج و الاكسسوار'},
+    {'id': 8, 'name': 'الثمار والحبوب'},
+    {'id': 9, 'name': 'المواد الغذائية'},
+    {'id': 10, 'name': 'المطاعم'},
+    {'id': 11, 'name': 'مواد التدفئة'},
+    {'id': 12, 'name': 'المكياج و الاكسسوار'},
     {'id': 18, 'name': 'الكتب و القرطاسية'},
     {'id': 19, 'name': 'الأدوات المنزلية'},
-    {'id': 20, 'name': 'الملابس والأحذية'},
+    {'id': 20, 'name': 'الملابس والاحذية'},
     {'id': 21, 'name': 'أثاث المنزل'},
     {'id': 22, 'name': 'تجار الجملة'},
     {'id': 23, 'name': 'الموزعين'},
-    {'id': 3, 'name': 'الموردين'},
-    {'id': 24, 'name': 'أسواق أخرى'},
-    {'id': 1, 'name': 'التوظيف'},
-    {'id': 2, 'name': 'المناقصات'},
-    {'id': 4, 'name': 'العروض العامة'},
+    {'id': 15, 'name': 'الموردين'},
+    {'id': 24, 'name': 'اسواق أخرى'},
+    {'id': 13, 'name': 'التوظيف'},
+    {'id': 14, 'name': 'المناقصات'},
+    {'id': 16, 'name': 'العروض العامة'},
   ];
 
   Future<void> _pickImage() async {
@@ -86,9 +86,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   // ❗️❗️ في ملف create_post_page.dart، استبدل الدالة القديمة بهذه ❗️❗️
 
   Future<void> _submitPost() async {
-    // التحقق من أن النموذج صالح وأن القسم تم اختياره
     if (_formKey.currentState!.validate() && _selectedMarket != null) {
-      // إظهار مؤشر التحميل
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -97,26 +95,36 @@ class _CreatePostPageState extends State<CreatePostPage> {
       );
 
       try {
-        // 1. تحويل قائمة الصور من List<Map> إلى List<String> تحتوي على المسارات فقط
+        // البحث عن الـ ID المناسب للاسم المختار
+        int? categoryId;
+        for (var market in _markets) {
+          if (market['name'] == _selectedMarket) {
+            categoryId = market['id'];
+            break;
+          }
+        }
+
+        if (categoryId == null) {
+          throw Exception('لم يتم العثور على الـ ID للقسم المختار');
+        }
+
         List<String> imagePaths =
             _images.map((img) => img['file'].path as String).toList();
 
-        // 2. استدعاء الدالة الممركزة والصحيحة من AuthService
+        // ✅ يمكنك هنا تحديث دالة createPost في AuthService لقبول categoryId
+        // حالياً نستخدم الدالة الحالية
         final result = await AuthService.createPost(
-          category: _selectedMarket!,
-          title: _titleController.text, // استخدام المتحكم الجديد
+          category: _selectedMarket!, // لا يزال نستخدم الاسم للتوافق مع الخادم
+          title: _titleController.text,
           content: _notesController.text,
           price: _priceController.text,
           location: _locationController.text,
           imagePaths: imagePaths,
-          videoPath:
-              _video?.path, // الحصول على المسار من الفيديو إذا كان موجودًا
+          videoPath: _video?.path,
         );
 
-        // إخفاء مؤشر التحميل
         if (mounted) Navigator.pop(context);
 
-        // 3. التعامل مع النتيجة
         if (result['success'] == true) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +133,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 backgroundColor: Colors.green,
               ),
             );
-            // الرجوع إلى الصفحة السابقة مع إشارة للنجاح (لتحديث البيانات هناك)
             Navigator.pop(context, true);
           }
         } else {
@@ -139,9 +146,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
           }
         }
       } catch (e) {
-        // إخفاء مؤشر التحميل في حال حدوث خطأ
         if (mounted) Navigator.pop(context);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

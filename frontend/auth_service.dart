@@ -4,12 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 class AuthService {
-  // ⚠️ استبدل هذا العنوان بعنوان IP الحقيقي للخادم الخاص بك
-  // للاختبار المحلي: استخدم عنوان IP الجهاز (مثل: 192.168.1.100)
-  // للخادم الحقيقي: استخدم الدومين أو IP الخادم
-  // ✅ تم التعديل: تغيير baseUrl ليكون جذر الـ API فقط
-  static String baseUrl =
-      'http://192.168.1.3:8000'; // مثال: 'http://yourdomain.com' أو 'http://10.0.2.2:8000' للمحاكي
+  static String baseUrl = 'https://kiniru.site';
 
   // مفاتيح التخزين المحلي
   static const String _tokenKey = 'auth_token';
@@ -344,7 +339,7 @@ class AuthService {
       // ✅ الإصلاح: استرجاع ?user_id= بدلاً من ?id=
       final response = await http
           .post(
-            Uri.parse('$baseUrl/api/users/toggle-status?user_id=$userId'),
+            Uri.parse('$baseUrl/api/users/toggle-status?id=$userId'),
             headers: getHeaders(token),
           )
           .timeout(const Duration(seconds: 30));
@@ -366,12 +361,12 @@ class AuthService {
     }
     try {
       final token = await getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/users/delete'),
-        headers: getHeaders(token),
-        // ✅ الإصلاح: استرجاع 'user_id' بدلاً من 'id' في الـ body
-        body: {'user_id': userId.toString()},
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/users/delete?id=$userId'),
+            headers: getHeaders(token),
+          )
+          .timeout(const Duration(seconds: 30));
 
       return _handleResponse(response, 'deleteUserPermanently');
     } catch (e) {
@@ -519,24 +514,31 @@ class AuthService {
   // ======== العمليات الأساسية ========
 
   // تسجيل مستخدم جديد
-  // ✅ تم التعديل: تغيير الرابط والطريقة لتتوافق مع Postman
   static Future<Map<String, dynamic>> register({
     required String fullName,
     required String emailOrPhone,
     required String password,
-    required String gender, // 'ذكر' أو 'أنثى'
+    required String gender,
     String? userType,
   }) async {
     try {
-      // جلب توكن الإشعارات من Firebase
+      // === جلب device token مع طلب الإذن إذا لزم ===
       String? deviceToken;
       try {
         deviceToken = await FirebaseMessaging.instance.getToken();
+        if (deviceToken == null) {
+          await FirebaseMessaging.instance.requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+          deviceToken = await FirebaseMessaging.instance.getToken();
+        }
       } catch (e) {
-        print("⚠️ Failed to get FCM token: $e");
+        print("⚠️ FCM token error: $e");
       }
 
-      // التأكد من أن قيمة الجنس صحيحة (عربية)
+      // === التحقق من صحة المدخلات ===
       if (gender != 'ذكر' && gender != 'أنثى') {
         return {'success': false, 'message': 'قيمة الجنس غير صالحة'};
       }
@@ -544,7 +546,6 @@ class AuthService {
       String formattedEmailOrPhone = emailOrPhone;
       if (!isEmail(emailOrPhone)) {
         formattedEmailOrPhone = formatPhoneNumber(emailOrPhone);
-        // التحقق من صحة رقم الهاتف
         if (!isValidPhone(emailOrPhone)) {
           return {'success': false, 'message': 'رقم الهاتف غير صحيح'};
         }
@@ -552,7 +553,7 @@ class AuthService {
         return {'success': false, 'message': 'البريد الإلكتروني غير صحيح'};
       }
 
-      // إعداد البيانات كـ Map<String, String> لـ form-data
+      // === إعداد بيانات الطلب ===
       final Map<String, String> requestData = {
         'full_name': fullName,
         'email_or_phone': formattedEmailOrPhone,
@@ -560,38 +561,38 @@ class AuthService {
         'gender': gender,
       };
 
-      // إضافة userType فقط إذا لم يكن null
+      // ✅ إضافة userType إذا وُجد
       if (userType != null) {
         requestData['userType'] = userType;
       }
-      if (deviceToken != null) requestData['device_token'] = deviceToken;
 
-      print('📤 إرسال طلب التسجيل...');
-      print('URL: $baseUrl/api/register');
-      print('البيانات: ${json.encode({...requestData, 'password': '***'})}');
+      // ✅ ✅ ✅ إضافة device_token إلى الطلب (هذا هو المفتاح!) ✅ ✅ ✅
+      if (deviceToken != null) {
+        requestData['device_token'] = deviceToken;
+        print('📱 device_token المرسل: $deviceToken');
+      } else {
+        print('⚠️ device_token غير متوفر عند التسجيل');
+      }
 
-      // إرسال طلب التسجيل
+      // === إرسال طلب التسجيل ===
       final response = await http
           .post(
             Uri.parse('$baseUrl/api/register'),
-            headers: {
-              ...getHeaders(),
-            },
-            body: requestData, // إرسال كـ form-data
+            headers: getHeaders(),
+            body: requestData,
           )
           .timeout(const Duration(seconds: 30));
 
       final result = _handleResponse(response, 'register');
 
+      // === معالجة النجاح ===
       if (result['success'] == true) {
-        // ✅ حفظ بيانات المستخدم مباشرة بعد التسجيل الناجح
         await _saveUserData(result['data']);
 
-        // ✅ جلب معلومات الملف الشخصي من الخادم لضمان التحديث
+        // تحديث بيانات المستخدم من الخادم (لضمان تزامن device_token إن تم حفظه لاحقًا)
         try {
           final profileResult = await getProfile();
           if (profileResult['success'] == true) {
-            // تحديث البيانات المحلية بالبيانات الجديدة من الخادم
             await _saveUserData(profileResult['data']);
           }
         } catch (e) {
@@ -601,7 +602,7 @@ class AuthService {
         return {
           'success': true,
           'message': result['message'] ?? 'تم التسجيل بنجاح',
-          'user': _currentUser, // إرجاع البيانات المحدثة
+          'user': _currentUser,
         };
       }
 
@@ -609,10 +610,7 @@ class AuthService {
     } catch (e) {
       print('❌ خطأ في التسجيل: $e');
       if (e.toString().contains('Failed to fetch')) {
-        return {
-          'success': false,
-          'message': '.تعذّر الاتصال بالخادم',
-        };
+        return {'success': false, 'message': '.تعذّر الاتصال بالخادم'};
       }
       return {
         'success': false,
@@ -1229,11 +1227,9 @@ class AuthService {
   }
 
   // استدعاء ملف المستخدم ومنشوراته
-  // ✅ تم التعديل: تغيير الرابط والطريقة لتتوافق مع Postman
   static Future<Map<String, dynamic>> getUserProfileAndPosts(int userId) async {
     try {
       final token = await getToken();
-      // ✅ تم التعديل: تغيير الرابط إلى /api/user/profile-and-posts?user_id=X
       final response = await http
           .get(
             Uri.parse('$baseUrl/api/user/profile-and-posts?id=$userId'),
@@ -1601,22 +1597,60 @@ class AuthService {
   }
 
   // جلب المنشورات حسب الفئة
-  // ✅ تم التعديل: افتراض رابط GET /api/posts?category=X
-  // جلب المنشورات حسب الفئة (مع دعم الترقيم مستقبلاً)
-  // ✅ جلب المنشورات حسب اسم الفئة النصي (مثل "الدراجات النارية")
   static Future<Map<String, dynamic>> getPostsByCategory(String categoryName,
       {int page = 1}) async {
     try {
       final token = await getToken();
+
+      // 🔍 البحث عن الـ ID المناسب للاسم
+      int? categoryId = _findCategoryIdByName(categoryName);
+
+      if (categoryId == null) {
+        return {'success': false, 'message': 'القسم غير موجود: $categoryName'};
+      }
+
       final uri = Uri.parse('$baseUrl/api/posts').replace(queryParameters: {
-        'category': categoryName, // ✅ اسم القسم كنص
+        'category_id': categoryId.toString(), // ✅ استخدام category_id
         'page': page.toString(),
       });
+
       final response = await http.get(uri, headers: getHeaders(token));
       return _handleResponse(response, 'get_posts_by_category');
     } catch (e) {
       return {'success': false, 'message': 'خطأ في جلب المنشورات: $e'};
     }
+  }
+
+// دالة مساعدة للعثور على ID القسم حسب الاسم
+  static int? _findCategoryIdByName(String categoryName) {
+    final categoryMap = {
+      'التوظيف': 13,
+      'المناقصات': 14,
+      'الموردين': 15,
+      'العروض العامة': 16,
+      'السيارات': 1, // ✅ تصحيح: كان 5 في التطبيق، 1 في DB
+      'الدراجات النارية': 2, // ✅ تصحيح
+      'تجارة العقارات': 3, // ✅ تصحيح
+      'المستلزمات العسكرية': 4, // ✅ تصحيح
+      'الهواتف والالكترونيات': 5, // ✅ تصحيح
+      'الأدوات الكهربائية': 6, // ✅ تصحيح
+      'ايجار العقارات': 7, // ✅ تصحيح
+      'الثمار والحبوب': 8, // ✅ تصحيح
+      'المواد الغذائية': 9, // ✅ تصحيح
+      'المطاعم': 10, // ✅ تصحيح
+      'مواد التدفئة': 11, // ✅ تصحيح
+      'المكياج و الاكسسوار': 12, // ✅ تصحيح
+      'المواشي والحيوانات': 17, // ✅ تصحيح
+      'الكتب و القرطاسية': 18, // ✅ تصحيح
+      'الأدوات المنزلية': 19, // ✅ تصحيح
+      'الملابس والأحذية': 20, // ✅ تصحيح
+      'أثاث المنزل': 21, // ✅ تصحيح
+      'تجار الجملة': 22, // ✅ تصحيح
+      'الموزعين': 23, // ✅ تصحيح
+      'أسواق أخرى': 24, // ✅ تصحيح
+    };
+
+    return categoryMap[categoryName];
   }
 
   static Future<Map<String, dynamic>> togglePostLike(int postId) async {
@@ -1856,6 +1890,38 @@ class AuthService {
     } else {
       return {
         'Accept': 'application/json',
+      };
+    }
+  }
+
+  // دالة جديدة لجلب المنشورات حسب category_id
+  static Future<Map<String, dynamic>> getPostsByCategoryId(
+    int categoryId, {
+    int page = 1,
+  }) async {
+    try {
+      final token = await getToken();
+
+      print('📤 جلب المنشورات للقسم ID: $categoryId, الصفحة: $page');
+
+      // ✅ استخدام الرابط الجديد مع category_id
+      final uri = Uri.parse('$baseUrl/api/categories/$categoryId?page=$page');
+
+      final response = await http
+          .get(
+            uri,
+            headers: getHeaders(token),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('📥 استجابة جلب المنشورات: Status ${response.statusCode}');
+
+      return _handleResponse(response, 'get_posts_by_category_id');
+    } catch (e) {
+      print('❌ خطأ في جلب المنشورات حسب الـ ID: $e');
+      return {
+        'success': false,
+        'message': 'خطأ في جلب المنشورات: ${e.toString()}',
       };
     }
   }

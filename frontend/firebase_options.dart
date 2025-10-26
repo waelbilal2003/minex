@@ -6,8 +6,6 @@ class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return android;
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      return ios;
     } else {
       throw UnsupportedError(
         'DefaultFirebaseOptions are not supported for this platform.',
@@ -21,14 +19,5 @@ class DefaultFirebaseOptions {
     messagingSenderId: '987403350920',
     projectId: 'minex-notifications',
     storageBucket: 'minex-notifications.appspot.com',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY', // <--- ❗️ استبدل هذه بالقيمة الصحيحة لـ iOS
-    appId: 'YOUR_IOS_APP_ID', // <--- ❗️ استبدل هذه بالقيمة الصحيحة لـ iOS
-    messagingSenderId: '822100705915',
-    projectId: 'minex-notifications',
-    storageBucket: 'minex-notifications.appspot.com',
-    iosBundleId: 'com.example.minex',
   );
 }

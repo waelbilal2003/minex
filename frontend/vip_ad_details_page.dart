@@ -41,158 +41,14 @@ class _VipAdDetailsPageState extends State<VipAdDetailsPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _mediaController?.dispose();
-    _videoController?.dispose();
-    super.dispose();
-  }
-
-  List<String> _getAllMedia() {
-    final adData = widget.adData;
-    final mediaSet = <String>{};
-
-    void addPath(dynamic path) {
-      if (path is String && path.isNotEmpty && path != 'null') {
-        final fullUrl = _getFullUrl(path);
-        print('➕ إضافة وسائط: $fullUrl');
-        mediaSet.add(fullUrl);
-      }
-    }
-
-    // ✅ إضافة صورة الغلاف
-    addPath(adData['cover_image_url']);
-    addPath(adData['media_files']);
-
-    void processMediaList(dynamic mediaData, String fieldName) {
-      print('🔍 معالجة حقل: $fieldName');
-      print('   النوع: ${mediaData.runtimeType}');
-      print('   القيمة الخام: $mediaData');
-
-      if (mediaData == null) {
-        print('   ⚠️ الحقل null');
-        return;
-      }
-
-      List<dynamic> parsedList = [];
-
-      if (mediaData is List) {
-        parsedList = mediaData;
-      } else if (mediaData is String) {
-        final trimmed = mediaData.trim();
-
-        if (trimmed.isEmpty || trimmed == '[]' || trimmed == 'null') {
-          print('   ⚠️ الحقل فارغ أو null');
-          return;
-        }
-
-        // محاولة فك JSON
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          try {
-            final decoded = json.decode(trimmed);
-            if (decoded is List) {
-              parsedList = decoded;
-            } else if (decoded is Map && decoded.containsKey('media_files')) {
-              // إذا كان JSON يحتوي على media_files
-              parsedList = decoded['media_files'] ?? [];
-            }
-          } catch (e) {
-            print('   ❌ فشل فك JSON: $e');
-            // محاولة معاملة كمسار مفرد
-            if (!trimmed.contains(',') && !trimmed.contains('[')) {
-              addPath(trimmed);
-            }
-            return;
-          }
-        } else {
-          // مسار مباشر أو قائمة مفصولة بفواصل
-          if (trimmed.contains(',')) {
-            parsedList = trimmed
-                .split(',')
-                .map((e) => e.trim())
-                .where((e) => e.isNotEmpty)
-                .toList();
-          } else {
-            addPath(trimmed);
-            return;
-          }
-        }
-      }
-
-      print('   ✅ تم استخراج ${parsedList.length} عنصر');
-      for (var i = 0; i < parsedList.length; i++) {
-        print('   [$i]: ${parsedList[i]}');
-        if (parsedList[i] is Map) {
-          // إذا كان العنصر Map، ابحث عن المسار
-          final item = parsedList[i] as Map;
-          addPath(item['url'] ??
-              item['path'] ??
-              item['file_path'] ??
-              item.toString());
-        } else {
-          addPath(parsedList[i]);
-        }
-      }
-    }
-
-    // ✅ معالجة جميع الحقول الممكنة
-    processMediaList(adData['media_files'], 'media_files');
-    processMediaList(adData['images'], 'images');
-    processMediaList(adData['media'], 'media');
-
-    // معالجة حقول إضافية محتملة
-    processMediaList(adData['attachments'], 'attachments');
-    processMediaList(adData['files'], 'files');
-
-    print('📋 إجمالي الوسائط: ${mediaSet.length}');
-    return mediaSet.toList();
-  }
-
-  String _getFullUrl(String path) {
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return path.replaceAll(r'\/', '/');
-    }
-
-    // إزالة أي شرطات مائلة زائدة
-    String cleanPath = path;
-    if (cleanPath.startsWith('/')) {
-      cleanPath = cleanPath.substring(1);
-    }
-
-    final fullUrl = '${AuthService.baseUrl}/$cleanPath';
-    print('🔗 تحويل المسار: $path -> $fullUrl');
-    return fullUrl;
-  }
-
-  bool _isVideoFile(String url) {
-    final extension = url.split('?').first.split('.').last.toLowerCase();
-    return ['mp4', 'mov', 'avi', 'mkv', '3gp', 'webm'].contains(extension);
-  }
-
-  void _initializeVideoController(String videoUrl) {
-    _videoController?.dispose();
-    _videoController = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
-      ..initialize().then((_) {
-        if (mounted) {
-          setState(() {});
-          _videoController?.play();
-          _videoController?.setLooping(true);
-        }
-      }).catchError((error) {
-        print('❌ خطأ في تحميل الفيديو: $error');
-      });
-  }
-
-  // ✅ دالة للحصول على قيمة الحقل بطرق متعددة
+  // أضف هذه الدالة المفقودة
   dynamic _getFieldValue(String fieldName, [List<String>? alternatives]) {
     final adData = widget.adData;
 
-    // البحث بالاسم الأساسي
     if (adData.containsKey(fieldName) && adData[fieldName] != null) {
       return adData[fieldName];
     }
 
-    // البحث في البدائل
     if (alternatives != null) {
       for (var alt in alternatives) {
         if (adData.containsKey(alt) && adData[alt] != null) {
@@ -202,6 +58,87 @@ class _VipAdDetailsPageState extends State<VipAdDetailsPage> {
     }
 
     return null;
+  }
+
+  @override
+  void dispose() {
+    _mediaController?.dispose();
+    _videoController?.dispose();
+    _videoController = null; // إضافة هذه السطر
+    super.dispose();
+  }
+
+  // ✅ تجميع كل الوسائط (صور + فيديوهات)
+  List<String> _getAllMedia() {
+    final adData = widget.adData;
+    final mediaSet = <String>{};
+
+    void addPath(dynamic path) {
+      if (path is String && path.isNotEmpty && path != 'null') {
+        mediaSet.add(_getFullUrl(path));
+      }
+    }
+
+    // ✅ أضف الغلاف أولاً
+    addPath(adData['cover_image_url']);
+
+    void processMediaList(dynamic mediaData) {
+      if (mediaData == null) return;
+      List<dynamic> parsedList = [];
+
+      if (mediaData is List) {
+        parsedList = mediaData;
+      } else if (mediaData is String) {
+        final trimmed = mediaData.trim();
+        if (trimmed.isEmpty || trimmed == 'null' || trimmed == '[]') return;
+
+        try {
+          final decoded = json.decode(trimmed);
+          if (decoded is List) parsedList = decoded;
+        } catch (_) {
+          if (trimmed.contains(',')) {
+            parsedList = trimmed.split(',').map((e) => e.trim()).toList();
+          } else {
+            parsedList = [trimmed];
+          }
+        }
+      }
+
+      for (var item in parsedList) {
+        if (item is String) {
+          addPath(item);
+        } else if (item is Map) {
+          addPath(item['url'] ?? item['path'] ?? item['file_path']);
+        }
+      }
+    }
+
+    // ✅ جمع الصور والفيديوهات
+    processMediaList(adData['additional_images']);
+    processMediaList(adData['videos']);
+
+    return mediaSet.toList();
+  }
+
+  String _getFullUrl(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    return '${AuthService.baseUrl}/$clean';
+  }
+
+  bool _isVideoFile(String url) {
+    final ext = url.split('?').first.split('.').last.toLowerCase();
+    return ['mp4', 'mov', 'avi', 'mkv', '3gp', 'webm'].contains(ext);
+  }
+
+  void _initializeVideoController(String url) {
+    _videoController?.dispose();
+    _videoController = VideoPlayerController.networkUrl(Uri.parse(url))
+      ..initialize().then((_) {
+        if (mounted) setState(() {});
+      }).catchError((e) {
+        debugPrint('❌ فشل تحميل الفيديو: $e');
+      });
   }
 
   @override
@@ -346,22 +283,67 @@ class _VipAdDetailsPageState extends State<VipAdDetailsPage> {
                 _initializeVideoController(newMediaUrl);
               } else {
                 _videoController?.pause();
+                // لا نحذف هنا لأن قد نعود إلى فيديو سابق
               }
             },
             itemBuilder: (context, index) {
               final mediaUrl = _allMedia[index];
               Widget mediaContent;
 
-              if (index == _currentMediaIndex &&
-                  _isVideoFile(mediaUrl) &&
+              // فيديو: فقط نعرض تحكم الفيديو إن كانت مهيئة و هذه الصفحة الحالية
+              if (_isVideoFile(mediaUrl) &&
+                  index == _currentMediaIndex &&
                   _videoController?.value.isInitialized == true) {
-                mediaContent = Center(
-                  child: AspectRatio(
-                    aspectRatio: _videoController!.value.aspectRatio,
-                    child: VideoPlayer(_videoController!),
+                mediaContent = GestureDetector(
+                  onTap: () {
+                    if (_videoController!.value.isPlaying) {
+                      _videoController!.pause();
+                    } else {
+                      _videoController!.play();
+                    }
+                    setState(() {});
+                  },
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: _videoController!.value.aspectRatio,
+                        child: VideoPlayer(_videoController!),
+                      ),
+                      // أيقونة مركزية توضح حالة التشغيل
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _videoController!.value.isPlaying ? 0.0 : 1.0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black45,
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 60,
+                          ),
+                        ),
+                      ),
+                      // شريط التقدم (صغير) أسفل الفيديو داخل الStack
+                      Positioned(
+                        bottom: 8,
+                        left: 12,
+                        right: 12,
+                        child: _videoController!.value.isInitialized
+                            ? VideoProgressIndicator(
+                                _videoController!,
+                                allowScrubbing: true,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
                   ),
                 );
               } else {
+                // صور - عرض عادي
                 mediaContent = CachedNetworkImage(
                   imageUrl: mediaUrl,
                   fit: BoxFit.contain,
@@ -374,7 +356,7 @@ class _VipAdDetailsPageState extends State<VipAdDetailsPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(Icons.error, color: Colors.red, size: 40),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                           'فشل تحميل الصورة',
                           style: TextStyle(color: Colors.white70),
@@ -387,6 +369,7 @@ class _VipAdDetailsPageState extends State<VipAdDetailsPage> {
 
               return GestureDetector(
                 onTap: () {
+                  // إيقاف أي فيديو عند الانتقال إلى المشاهدة الكاملة
                   _videoController?.pause();
                   Navigator.push(
                     context,
@@ -402,12 +385,7 @@ class _VipAdDetailsPageState extends State<VipAdDetailsPage> {
               );
             },
           ),
-          if (_videoController?.value.isInitialized == true &&
-              !_videoController!.value.isPlaying)
-            Center(
-              child: Icon(Icons.play_circle_outline,
-                  color: Colors.white70, size: 60),
-            ),
+          // مؤشرات التبديل
           _buildMediaIndicator(_allMedia.length, _currentMediaIndex),
         ],
       ),
